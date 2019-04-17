@@ -1,0 +1,119 @@
+Option Explicit
+
+Sub CreateIndexSheet()
+
+Application.ScreenUpdating = False
+Application.DisplayAlerts = False
+
+Dim wbConquest As Workbook
+Dim Cell As Range
+Dim Substitute As String
+Dim GeoRange As Range
+Dim GeoOrder As String
+Dim Index As Workbook
+
+Set wbConquest = Workbooks.Open("C:\Users\" & Environ("Username") & "\Box Sync\Revenue Operations\Inventory Management\Reference Materials\Forecasting Shortcuts\AAFT Reporting Tool.xlsm")
+Set Index = Workbooks.Add
+Set GeoRange = wsConquest.Range(Range("A2").End(xlDown).End(xlDown).End(xlToRight).End(xlToRight), Range("A2").End(xlDown).End(xlDown).End(xlToRight).End(xlToRight).End(xlDown))
+Substitute = "=substitute(substitute(F2,""new pages"",""ros""),""country in ('united states')"",G2)"
+GeoOrder = "=IF(INDEX('[AAFT Reporting Tool.xlsm]Target Creation'!$J:$J,MATCH(TRUE,INDEX('[AAFT Reporting Tool.xlsm]Target Creation'!$I:$I=G2,0),0))=0,""No Geo Order"",INDEX('[AAFT Reporting Tool.xlsm]Target Creation'!$J:$J,MATCH(TRUE,INDEX('[AAFT Reporting Tool.xlsm]Target Creation'!$I:$I=G2,0),0)))"
+
+    'Copies first conquest set (includes headers)
+    wbConquest.Activate
+    wsConquest.Range("F5", Range("F5").End(xlDown).End(xlToLeft).End(xlToLeft)).Copy
+    Index.Worksheets("Sheet1").Range("A1").PasteSpecial
+    ThisWorkbook.Activate
+        
+        'Creates loop to copy/paste conquest set and valid geographies (up to row 70)
+        For Each Cell In GeoRange
+            If Cell.Value = "" Or Cell.Value = "Geographies" Then
+                'Do nothing if blank, or first Cell
+                Else: Cell.Copy
+                Index.Activate
+                Worksheets("Sheet1").Range("A1").End(xlToRight).End(xlDown).Offset(0, 1).Select
+                Worksheets("Sheet1").Range(Selection.Address, Worksheets("Sheet1").Range(Selection.Address).End(xlUp).Offset(1, 0)).PasteSpecial
+                wbConquest.Activate
+                wsConquest.Range("F6", Range("F6").End(xlDown).End(xlToLeft).End(xlToLeft)).Copy
+                Index.Activate
+                Worksheets("Sheet1").Range("A1").End(xlToRight).End(xlDown).Offset(1, 0).End(xlToLeft).PasteSpecial
+            End If
+        Next Cell
+    Selection.Delete
+
+    'Substitute Placement/Geo Formula
+    Index.Activate
+    Worksheets("Sheet1").Range("A1").End(xlToRight).Offset(1, 2).Formula = Substitute
+    Worksheets("Sheet1").Range("A1").End(xlToRight).Offset(1, 2).Copy
+    Worksheets("Sheet1").Range("A1").End(xlToRight).Offset(1, 2).Select
+    Worksheets("Sheet1").Range(Selection.Address, Worksheets("Sheet1").Range(Selection.Address).Offset(0, -1).End(xlDown).Offset(0, 1)).PasteSpecial
+    Selection.Copy
+    Worksheets("Sheet1").Range("F2").PasteSpecial xlPasteValues
+
+    'GeoOrder Formula
+    Index.Activate
+    Worksheets("Sheet1").Range("A1").End(xlToRight).Offset(1, 2).Formula = GeoOrder
+    Worksheets("Sheet1").Range("A1").End(xlToRight).Offset(1, 2).Copy
+    Worksheets("Sheet1").Range("A1").End(xlToRight).Offset(1, 2).Select
+    Worksheets("Sheet1").Range(Selection.Address, Worksheets("Sheet1").Range(Selection.Address).Offset(0, -1).End(xlDown).Offset(0, 1)).PasteSpecial
+
+    'Copy/Paste
+    Index.Activate
+    Worksheets("Sheet1").Range("G:H").Copy
+    Worksheets("Sheet1").Range("G:H").PasteSpecial xlPasteValues
+    Worksheets("Sheet1").Range("F1").Copy
+    Worksheets("Sheet1").Range("G1:H1").PasteSpecial
+    Worksheets("Sheet1").Range("G1").Value = "Substitute Key"
+    Worksheets("Sheet1").Range("H1").Value = "GeoOrder Key"
+    Worksheets("Sheet1").Range("F:F").Copy
+    Worksheets("Sheet1").Range("I1").PasteSpecial
+    Worksheets("Sheet1").Range("F:F").Delete
+    Worksheets("Sheet1").Columns("H").Copy
+    Worksheets("Sheet1").Range("A:H").PasteSpecial Paste:=xlPasteFormats
+    Worksheets("Sheet1").Range("A:H").ColumnWidth = 15
+    Worksheets("Sheet1").Range("H2", Worksheets("Sheet1").Range("H2").End(xlDown)).Select
+    Selection.Copy
+    
+Application.ScreenUpdating = True
+Application.DisplayAlerts = True
+
+'Call BrowseToSite (TEMPORARILY BROKEN)
+
+End Sub
+
+Sub BrowseToSite()
+
+    Dim Driver As New Selenium.ChromeDriver
+    Dim URLString As String
+    Dim sDate As String
+    Dim eDate As String
+    Dim UserName As String
+    Dim UserEmail As String
+    
+    URLString = "http://aaft2hudson.intranet.hearst.com"
+    Driver.Get URLString
+    Driver.Window.Maximize
+    sDate = wsConquest.Range("E1")
+    eDate = wsConquest.Range("E2")
+    UserName = wsConquest.Range("B1")
+    UserEmail = wsConquest.Range("B2")
+    
+    Driver.FindElement
+    Driver.FindElementById ("StartDate")
+    Driver.activeElement.FindElementById ("startdate")
+    Driver.FindElementById("enddate").Value = Format(eDate, "mm/dd/yyyy")
+    Driver.FindElementById("name").Value = UserName
+    Driver.FindElementById("email").Value = UserEmail
+
+    
+    Workbooks("AAFT Reporting Tool").Activate
+    
+    'Date Breakouts
+    If wsConquest.Range("E3") = "Monthly" Then
+        Driver.FindElementById("date-breakout-monthly").Click
+        ElseIf wsConquest.Range("E3").Value = "None" Then
+        Driver.FindElementById("date-breakout-none").Click
+        ElseIf wsConquest.Range("E3").Value = "Daily" Then
+        Driver.FindElementById("date-breakout-daily").Click
+    End If
+
+End Sub

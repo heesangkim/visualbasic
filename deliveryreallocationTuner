@@ -1,0 +1,469 @@
+Option Explicit
+
+Public Sub OpenReallocationTunerTemplate()
+
+Dim DRT_Folder, DRT_Reports_Folder, Tuner_Folder As String
+Dim Tuner_File, DRT_Template_File, DRT_Tuner_File, DRT_Upload_File, DayDFP_File, FullDFP_File As String
+
+Dim Macro As ThisWorkbook
+Dim Tuner_Settings, DRT_Template, DRT_Tuner, DRT_Upload, DFP_3Day, FullDFP As Workbook
+Dim DRT_Template_Report, DRT_Template_Last, DRT_Tuner_Last, DFP_3Day_Update, AdvExcl, OrdExcl, LinExcl, Lookups, MacroRef As Worksheet
+Dim Report As Worksheet
+
+Dim Today As Date
+Dim i, x, y As Integer
+Dim Template_LastDate, Tuner_LastDate, Lookups_LastDate, DFP_3Day_File As String
+Dim LastRow As Long
+
+'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+'NEED TO DO
+'1. - Compose Email
+'2. - Create Log Data
+'3. - Index Frequency Lookups
+'4. - Automate Liberator
+'5. - Fix Reallocate and Issues tabs
+'6. - Automatically move old files into archive
+
+    '********************************************************************************************************************************************************'
+    'SPEEDUPS
+    Application.Calculation = xlCalculationManual
+    Application.ScreenUpdating = False
+
+    '********************************************************************************************************************************************************'
+    'DECLARE VARIABLES
+    Set Macro = ThisWorkbook
+    Macro.Sheets(1).Range("G1").Value = "Current user is: " & Environ("Username")
+    Today = Format(Now(), "yyyy-mm-dd")
+    
+    i = 0 'Template Variable
+    x = 0 'Tuner Variable
+    y = 0 'Lookups Variable
+    
+    Template_LastDate = Format(DateAdd("d", -i, Today), "yyyy-mm-dd")
+    Tuner_LastDate = Format(DateAdd("d", -x, Today), "yyyy-mm-dd")
+    Lookups_LastDate = Format(DateAdd("d", -x, Today), "yyyy-mm-dd")
+    
+    '********************************************************************************************************************************************************'
+    'DECLARE FOLDER LOCATIONS
+    DRT_Folder = Macro.Sheets(1).Range("E2").Value
+    DRT_Reports_Folder = Macro.Sheets(1).Range("E3").Value
+    Tuner_Folder = Macro.Sheets(1).Range("E4").Value
+    
+    '********************************************************************************************************************************************************'
+    'DECLARE FILE LOCATIONS
+    Tuner_File = Dir(ThisWorkbook.Sheets(1).Range("J4") & "Tuner Settings_" & Format(Tuner_LastDate, "yyyy-mm-dd") & "_*")
+    DRT_Template_File = "DFP_DRT_Template_"
+    DRT_Tuner_File = "DFP_DRT_"
+    DRT_Upload_File = "DFP_DRT_Upload_"
+    DFP_3Day_File = DRT_Reports_Folder & "3Day_DFP (" & Format(DateAdd("d", -3, Today), "mmm d, yyyy") & " - " & Format(DateAdd("D", -1, Today), "mmm d, yyyy") & ")"
+    FullDFP_File = DRT_Reports_Folder & "DRT_DFP (Jan 1, " & Format(Today, "yyyy") & " - " & Format(DateAdd("D", -1, Today), "mmm d, yyyy") & ")"
+    
+    '********************************************************************************************************************************************************'
+    'TUNER START
+    
+    'Open Last DRT_Template
+    On Error Resume Next
+    Do While DRT_Template Is Nothing
+        Set DRT_Template = Workbooks.Open(DRT_Folder & DRT_Template_File & Template_LastDate)
+        Macro.Sheets(1).Range("B4") = DRT_Folder & DRT_Template_File & Template_LastDate
+        i = i + 1
+        Template_LastDate = Format(DateAdd("d", -i, Today), "yyyy-mm-dd")
+    Loop
+    
+        'RESET Template_LastDate
+        i = i - 1
+        Template_LastDate = Format(DateAdd("d", -i, Today), "yyyy-mm-dd")
+    
+    'Open Last DRT_Tuner
+    Do While DRT_Tuner Is Nothing
+        Set DRT_Tuner = Workbooks.Open(DRT_Folder & DRT_Tuner_File & Tuner_LastDate)
+        Macro.Sheets(1).Range("B5") = DRT_Folder & DRT_Tuner_File & Tuner_LastDate
+        x = x + 1
+        Tuner_LastDate = Format(DateAdd("d", -x, Today), "yyyy-mm-dd")
+    Loop
+    
+        'RESET Tuner_LastDate
+        x = x - 1
+        Tuner_LastDate = Format(DateAdd("d", -x, Today), "yyyy-mm-dd")
+
+    '*******************************************************************************************************************************************************'
+    'TUNER_SETTINGS -- Update Tuner Lookups
+    
+    Do While Tuner_Settings Is Nothing
+        Tuner_File = Dir(Tuner_Folder & "Tuner Settings_" & Format(Lookups_LastDate, "yyyy-mm-dd") & "*")
+        Set Tuner_Settings = Workbooks.Open("D:\Box\Box\Revenue Operations\Tuner Settings\" & Tuner_File)
+        y = y + 1
+        Lookups_LastDate = Format(DateAdd("d", -y, Today), "yyyy-mm-dd")
+    Loop
+    
+        'RESET Tuner_Settings LastDate (-1 because last loop does unnecessary +1)
+        y = y - 1
+        Lookups_LastDate = Format(DateAdd("d", -y, Today), "yyyy-mm-dd")
+            
+    Set AdvExcl = Tuner_Settings.Worksheets("Advertiser_Settings")
+    Set OrdExcl = Tuner_Settings.Worksheets("Order_Overrides")
+    Set LinExcl = Tuner_Settings.Worksheets("Line_item_Overrides")
+    Set Lookups = DRT_Template.Worksheets("Lookups")
+    
+    'Copy/Paste Advertiser Settings
+    With Lookups
+        .Range("B3", .Range("B3").End(xlDown).Offset(0, 1)).ClearContents
+        .Range("B3").Value = "=IFERROR(INDEX('[" & Tuner_File & "]Advertiser_Settings'!C$7:C$96,MATCH($A3,'[" & Tuner_File & "]Advertiser_Settings'!$A$7:$A$96,0)),""No"")"
+        .Range("C3").Value = "=IFERROR(INDEX('[" & Tuner_File & "]Advertiser_Settings'!D$7:D$96,MATCH($A3,'[" & Tuner_File & "]Advertiser_Settings'!$A$7:$A$96,0)),.25)"
+        .Range("B3:C3").Copy
+        .Range("B3", .Range("A3").End(xlDown).Offset(0, 1)).PasteSpecial xlPasteFormulas
+        .Calculate
+        .Range("B3", .Range("B3").End(xlDown).Offset(0, 1)).Copy
+        .Range("B3", .Range("B3").End(xlDown).Offset(0, 1)).PasteSpecial xlPasteValues
+    End With
+    
+    'Copy/Paste Excluded Order Settings
+    Lookups.Range("H3", Lookups.Range("H3").End(xlDown).Offset(0, 1)).ClearContents
+    
+    With OrdExcl
+        .Range("A6:G5000").AutoFilter 5, "No"
+        .Range("B6", .Range("B6").End(xlDown).Offset(0, 1)).Copy
+    End With
+    
+    Lookups.Range("H2").PasteSpecial xlPasteValues
+    
+    'Copy/Paste Excluded Line Item Settings
+    Lookups.Range("K3", Lookups.Range("K3").End(xlDown).Offset(0, 1)).ClearContents
+    
+    With LinExcl
+        .Range("A6:G5000").AutoFilter 5, "No"
+        .Range("B6", .Range("B6").End(xlDown).Offset(0, 1)).Copy
+    End With
+    
+    Lookups.Range("K2").PasteSpecial xlPasteValues
+    
+    Tuner_Settings.Close SaveChanges:=False
+    
+    '*******************************************************************************************************************************************************'
+    'COMPLETE TUNER
+    
+    Set DRT_Template_Report = DRT_Template.Worksheets("Report")
+    Set DRT_Template_Last = DRT_Template.Worksheets("last_report")
+    Set DRT_Tuner_Last = DRT_Tuner.Worksheets("report")
+    
+    'Copy last report onto tuner template {last_report}
+    With DRT_Tuner_Last
+        .ShowAllData
+        .Columns("A:BZ").Copy
+    End With
+    
+    With DRT_Template_Last
+        .ShowAllData
+        .Range("A1").PasteSpecial xlPasteValues
+    End With
+    
+        DRT_Tuner.Application.CutCopyMode = False
+        DRT_Tuner.Close SaveChanges:=False
+     
+    'Copy/Paste 3Day_DFP onto tuner template {3Day_DFP}
+    Set DFP_3Day = Workbooks.Open(DFP_3Day_File)
+    
+        'Checks DFP_3Day exists, else exit sub
+        If DFP_3Day Is Nothing Then
+            MsgBox "DFP_3Day Not Found"
+            DRT_Template.Application.CutCopyMode = False
+            DRT_Template.Close SaveChanges:=False
+            Exit Sub
+            Else
+        End If
+    
+    DFP_3Day.Sheets(1).Columns("A:E").Copy
+    
+    Set DFP_3Day_Update = DRT_Template.Worksheets("3Day_DFP")
+    
+    DFP_3Day_Update.Range("A1").PasteSpecial
+    
+        DFP_3Day.Application.CutCopyMode = False
+        DFP_3Day.Close SaveChanges:=False
+    
+    'Copy/Paste DRT_DFP onto tuner template {report}
+    Set FullDFP = Workbooks.Open(FullDFP_File)
+    
+        'Checks DRT_DFP exists, else exit sub
+        If FullDFP Is Nothing Then
+            MsgBox "DRT_DFP Report Not Found"
+            DRT_Template.Application.CutCopyMode = False
+            DRT_Template.Close SaveChanges:=False
+            Exit Sub
+            Else
+        End If
+       
+    With DRT_Template_Report
+        .ShowAllData
+        .Range("BX6", .Range("BX6").End(xlDown).End(xlToLeft).Offset(2, 0)).ClearContents
+    End With
+    
+    FullDFP.Worksheets("Report data").Range("A1", FullDFP.Worksheets("Report data").Range("A1").End(xlToRight).End(xlDown)).Copy
+
+    DRT_Template_Report.Range("BF5").PasteSpecial
+    
+        FullDFP.Application.CutCopyMode = False
+        FullDFP.Close SaveChanges:=False
+    
+    'Copy/Paste Formulas
+    With DRT_Template_Report
+        .Range("A4", .Range("A4").End(xlToRight)).Copy
+        .Range("BF5").End(xlDown).End(xlToLeft).Select
+        .Range(Selection.Address, .Range(Selection.Address).End(xlUp).Offset(1, 0)).PasteSpecial
+        .Calculate
+        .Range("BE5", .Range("BE5").End(xlDown).End(xlToLeft)).Copy
+        .Range("A5").PasteSpecial xlPasteValues
+    End With
+    
+    DRT_Template.Calculate
+    
+    LastRow = Cells(Rows.Count, 1).End(xlUp).Row
+
+    With DRT_Template_Report.Range("A5:BX" & LastRow)
+        .Sort Key1:=Range("E5"), Order1:=xlDescending, Header:=xlYes
+        .AutoFilter field:=5, Criteria1:="Delete"
+        .Offset(1, 0).SpecialCells(xlCellTypeVisible).EntireRow.Delete
+    End With
+    
+    With DRT_Template_Report
+        .ShowAllData
+        .Range("A2").Formula = "=sum(a1:e1)"
+        .Calculate
+    End With
+    
+    LastRow = Cells(Rows.Count, 1).End(xlUp).Row
+    
+    'Error Check
+    If DRT_Template_Report.Range("A2") > 0 Then
+        MsgBox ("Please Fix Tuner Errors")
+        Exit Sub
+        Else
+    End If
+    
+    DRT_Template_Report.Range("A2").ClearContents
+    Application.Calculate
+    
+    '*******************************************************************************************************************************************************'
+    'UPDATE ANAYLSIS TABS
+    
+    'Single_Line Tab Update
+    With DRT_Template.Worksheets("Single_Line")
+        .Range("A6", .Range("A6").End(xlDown).End(xlToRight)).ClearContents
+    End With
+    
+    With DRT_Template_Report.Range("A5:BX" & LastRow)
+        .Sort Key1:=Range("P5"), Order1:=xlDescending, Header:=xlYes
+        .AutoFilter field:=16, Criteria1:="Single Line"
+        .SpecialCells(xlCellTypeVisible).Range("U1:AO1", .Range("U1:AO1").End(xlDown)).Copy
+    End With
+    
+    DRT_Template.Worksheets("Single_Line").Range("A5").PasteSpecial
+    
+    
+    'Pacing_Good Update
+    With DRT_Template.Worksheets("Pacing_Good")
+        .Range("A6", .Range("A6").End(xlDown).End(xlToRight)).ClearContents
+    End With
+    
+    With DRT_Template_Report.Range("A5:BX" & LastRow)
+        .Sort Key1:=Range("P5"), Order1:=xlDescending, Header:=xlYes
+        .AutoFilter field:=16, Criteria1:="Pacing Good"
+        .SpecialCells(xlCellTypeVisible).Range("U1:AT1", .Range("U1:AT1").End(xlDown)).Copy
+    End With
+    
+    DRT_Template.Worksheets("Pacing_Good").Range("A5").PasteSpecial
+    
+    
+    '100pctSOV Tab Update
+    With DRT_Template.Worksheets("100pctSOV")
+        .Range("A6", .Range("A6").End(xlDown).End(xlToRight)).ClearContents
+    End With
+    
+    With DRT_Template_Report.Range("A5:BX" & LastRow)
+        .Sort Key1:=Range("P5"), Order1:=xlDescending, Header:=xlYes
+        .AutoFilter field:=16, Criteria1:="100pct BG"
+        .SpecialCells(xlCellTypeVisible).Range("U1:AV1", .Range("U1:AV1").End(xlDown)).Copy
+    End With
+    
+    DRT_Template.Worksheets("100pctSOV").Range("A5").PasteSpecial
+    
+    
+    'Excluded Tab Update
+    With DRT_Template.Worksheets("Excluded")
+        .Range("A6", .Range("A6").End(xlDown).End(xlToRight)).ClearContents
+    End With
+    
+    With DRT_Template_Report.Range("A5:BX" & LastRow)
+        .Sort Key1:=Range("P5"), Order1:=xlDescending, Header:=xlYes
+        .AutoFilter field:=16, Criteria1:="Excluded"
+        .SpecialCells(xlCellTypeVisible).Range("U1:AV1", .Range("U1:AV1").End(xlDown)).Copy
+    End With
+    
+    DRT_Template.Worksheets("Excluded").Range("A5").PasteSpecial
+    
+    
+    'Issues Tab Update
+    With DRT_Template.Worksheets("Issues")
+        .Range("A6", .Range("A6").End(xlDown).End(xlToRight)).ClearContents
+    End With
+    
+    With DRT_Template_Report.Range("A5:BX" & LastRow)
+        .Sort Key1:=Range("P5"), Order1:=xlDescending, Header:=xlYes
+        .AutoFilter field:=16, Criteria1:="Issues"
+        .SpecialCells(xlCellTypeVisible).Range("F1:AD1", .Range("F1:AD1").End(xlDown)).Copy
+    End With
+    
+    With DRT_Template.Worksheets("Issues") 'MAKE SURE THIS WORKS
+        .Range("A5").PasteSpecial
+        .Columns("G:O").Delete
+        .Range("C5", .Range("C5").End(xlDown).Offset(0, 3)).Copy
+        .Range("Q5").PasteSpecial
+        .Range("G5", .Range("G5").End(xlDown).End(xlToRight)).Copy
+        .Range("A5").PasteSpecial
+        .Columns("O:T").Delete
+    End With
+    
+    Application.Calculate
+    
+    'Save As New DRT_Template File
+    DRT_Template.SaveAs FileName:=DRT_Folder & DRT_Template_File & Format(Today, "yyyy-mm-dd") & ".xlsb"
+    Macro.Sheets(1).Range("B7").Value = DRT_Folder & DRT_Template_File & Format(Today, "yyyy-mm-dd")
+    
+    '*******************************************************************************************************************************************************'
+    'Copy/Paste As Values and Save As New DRT_File
+    With DRT_Template
+        .Sheets("Summary").Cells.Copy
+        .Sheets("Summary").Cells.PasteSpecial xlPasteValues
+    
+        .Sheets("Reallocate").ShowAllData
+        .Sheets("Reallocate").Cells.Copy
+        .Sheets("Reallocate").Cells.PasteSpecial xlPasteValues
+    
+        .Sheets("Booked Variance").ShowAllData
+        .Sheets("Booked Variance").Cells.Copy
+        .Sheets("Booked Variance").Cells.PasteSpecial xlPasteValues
+    
+        .Sheets("Issues").ShowAllData
+        .Sheets("Issues").Cells.Copy
+        .Sheets("Issues").Cells.PasteSpecial xlPasteValues
+    
+        .Sheets("Excluded").ShowAllData
+        .Sheets("Excluded").Cells.Copy
+        .Sheets("Excluded").Cells.PasteSpecial xlPasteValues
+    
+        .Sheets("100pctSOV").ShowAllData
+        .Sheets("100pctSOV").Cells.Copy
+        .Sheets("100pctSOV").Cells.PasteSpecial xlPasteValues
+    
+        .Sheets("Pacing_Good").ShowAllData
+        .Sheets("Pacing_Good").Cells.Copy
+        .Sheets("Pacing_Good").Cells.PasteSpecial xlPasteValues
+    
+        .Sheets("Single_Line").ShowAllData
+        .Sheets("Single_Line").Cells.Copy
+        .Sheets("Single_Line").Cells.PasteSpecial xlPasteValues
+    
+        .Sheets("Report").ShowAllData
+        .Sheets("Report").Cells.Copy
+        .Sheets("Report").Cells.PasteSpecial xlPasteValues
+        .SaveAs FileName:=DRT_Folder & DRT_Tuner_File & Format(Today, "yyyy-mm-dd") & ".xlsb"
+    End With
+    
+    Macro.Sheets(1).Range("B8").Value = DRT_Folder & DRT_Tuner_File & Format(Today, "yyyy-mm-dd")
+
+    LastRow = DRT_Template.Sheets("Reallocate").Cells(Rows.Count, 1).End(xlUp).Row
+    
+    '*******************************************************************************************************************************************************'
+    'Save Upload File (ADD COUNT OF LINES -- IF > 3000 CREATE SECOND FILE)
+    With DRT_Template.Sheets("Reallocate").Range("A5:BX" & LastRow)
+        .Sort Key1:=Range("AH5"), Order1:=xlDescending, Header:=xlYes
+        .AutoFilter field:=34, Criteria1:="Liberator Weekly: More than $5 in proj BG recovery"
+        .SpecialCells(xlCellTypeVisible).Range("AI1:AL1", .Range("AI1:AL1").End(xlDown)).Copy
+    End With
+    
+    Set DRT_Upload = Workbooks.Add
+    DRT_Upload.Sheets(1).Range("A1").PasteSpecial xlPasteValues
+    DRT_Upload.SaveAs FileName:=DRT_Folder & "DRT_Upload_" & Format(Today, "yyyy-mm-dd") & ".csv"
+    DRT_Upload.Close
+    Macro.Sheets(1).Range("B9").Value = DRT_Folder & DRT_Upload_File & Format(Today, "yyyy-mm-dd")
+    
+    DRT_Template.Sheets("Reallocate").ShowAllData
+    
+    With DRT_Template.Sheets("Summary")
+        .Activate
+        .Range("A1").Select
+    End With
+    
+    Application.ScreenUpdating = True
+    Application.Calculations = xlAutomatic
+    
+    DRT_Template.Save
+    DRT_Template.Close
+    
+    Call SendDRT
+    
+End Sub
+
+Sub SendDRT()
+   
+Dim Macro, DRT As Workbook
+Dim Outlook As Outlook.Application
+Dim Email As Outlook.MailItem
+Dim Email2 As Object
+Dim Recipient As Recipient
+Dim Recipients As Recipients
+Dim Attachment As String
+Dim Today, SigString, Signature As String
+Dim wdDoc As Word.Document
+    
+    Today = Now()
+    Set Macro = ThisWorkbook
+    Attachment = Macro.Sheets(1).Range("E2") & "DFP_DRT_" & Format(Today, "yyyy-mm-dd") & ".xlsb"
+    
+    Set DRT = Workbooks.Open(Attachment)
+    DRT.Sheets("Summary").Range("A1:L57").CopyPicture Appearance:=xlScreen, Format:=xlPicture
+    
+    Set Outlook = CreateObject("Outlook.Application")
+    Set Email = Outlook.CreateItem(olMailItem)
+        
+    Set wdDoc = Email.GetInspector.WordEditor
+    
+    Set Recipients = Email.Recipients
+    Set Recipient = Recipients.Add(Macro.Sheets(1).Range("B12"))
+    Recipient.Type = 1
+    
+    '.HTMLBody = "<BODY style=font-size:11pt;font-family:Calibri>Hey Byron,<br><br>Attached is today's DRT Upload File excluding CDN.<br><br>Best,</BODY>" & Signature
+        '.Send
+    
+    With Email
+        .Display
+        Signature = Email.Body
+        wdDoc.Range.PasteAndFormat wdChartPicture
+        wdDoc.Range.InsertBefore Macro.Sheets(1).Range("B16")
+        wdDoc.Range.InsertParagraphBefore
+        wdDoc.Range.InsertParagraphBefore
+        wdDoc.Range.InsertBefore Macro.Sheets(1).Range("B15")
+        wdDoc.Range.InsertParagraphBefore
+        wdDoc.Range.InsertParagraphBefore
+        wdDoc.Range.InsertBefore Macro.Sheets(1).Range("B14")
+        wdDoc.Range.InsertParagraphAfter
+        wdDoc.Range.InsertParagraphAfter
+        wdDoc.Range.InsertAfter Signature
+        
+        With wdDoc
+            .InlineShapes(1).Height = 650
+         End With
+        
+        .Subject = Macro.Sheets(1).Range("B13")
+        
+        For Each Recipient In Recipients
+            Recipient.Resolve
+        Next
+        
+        .Attachments.Add Attachment
+    End With
+    
+    DRT.Close xlSaveChanges = False
+    
+    
+End Sub

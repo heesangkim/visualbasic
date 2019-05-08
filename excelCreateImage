@@ -1,0 +1,23 @@
+    Public Sub createImage(WS As Worksheet, _
+                           RangeAddress As String, _
+                           nameFile As String)
+    
+        Dim Pic As Range
+        
+        WS.Activate
+        Set Pic = WS.Range(RangeAddress)
+        Pic.CopyPicture xlScreen
+        
+        With WS.ChartObjects.Add(Pic.Left, _
+                                 Pic.Top, _
+                                 Pic.Width, _
+                                 Pic.Height)
+            .Activate
+            .Chart.Paste
+            .Chart.Export Environ("USERPROFILE") & "\Desktop\" & nameFile & ".jpg", "JPG"
+        End With
+        
+        WS.ChartObjects(WS.ChartObjects.Count).Delete
+        Set Pic = Nothing
+    
+    End Sub

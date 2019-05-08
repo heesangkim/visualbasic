@@ -1,0 +1,45 @@
+    Public Sub startLog(WS As Worksheet)
+        
+        Dim lrow As String
+        
+        lrow = WS.Find(What:="*", _
+                       After:=Range("A1"), _
+                       LookAt:=xlPart, _
+                       LookIn:=xlFormulas, _
+                       SearchOrder:=xlByRows, _
+                       SearchDirection:=xlPrevious, _
+                       MatchCase:=False).Row
+        
+        With WS
+            .Range("A" & lrow + 1).Value = Environ("Username")
+            .Range("B" & lrow + 1).Value = Format(Now(), "mmm dd, yyyy")
+            .Range("C" & lrow + 1).Value = Format(Now(), "hh:mm:ss")
+        End With
+        
+    End Sub
+   
+   
+   _______________________________________________________________________________________________________________________________
+   
+   
+   
+     Public Sub endLog(WS As Worksheet)
+        
+        Dim lrow As String
+        
+        lrow = WS.Cells.Find(What:="*", _
+                        After:=Range("A1"), _
+                        LookAt:=xlPart, _
+                        LookIn:=xlFormulas, _
+                        SearchOrder:=xlByRows, _
+                        SearchDirection:=xlPrevious, _
+                        MatchCase:=False).Row
+        With WS
+            .Range("D" & lrow).Value = Format(Now(), "hh:mm:ss")
+            .Range("E" & lrow).Formula = "=D" & lrow & "-C" & lrow
+            .Range("E" & lrow).Copy
+            .Range("E" & lrow).PasteSpecial xlPasteValues
+            .Range("F" & lrow).Value = "Completed"
+        End With
+
+    End Sub

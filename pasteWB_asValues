@@ -1,0 +1,17 @@
+    Public Sub wbValues(WB As Workbook)
+    
+    Dim WS As Worksheet
+    
+    On Error Resume Next
+    For Each WS In WB.Worksheets
+        If WS.Visible = True Then
+            WS.ShowAllData
+            WS.Activate
+            WS.Cells.Copy
+            WS.Range("A1").PasteSpecial Paste:=xlValues
+        End If
+    Next WS
+    
+    Application.CutCopyMode = False
+    
+    End Sub

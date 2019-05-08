@@ -1,0 +1,648 @@
+ Option Explicit
+ 
+ Sub DRT()
+    
+'_______Declare Variables_____________________________________
+    
+        Dim Macro As Workbook               '...............................................................................Macro Sheet References
+            Dim M_Main As Worksheet
+            Dim M_Log  As Worksheet
+        
+        Dim Upload As Workbook              '...............................................................................Upload File Reference
+        
+        
+        Dim DFP_3Day As Workbook            '...............................................................................3Day_DFP Report Data References
+            Dim Data_3Day As Worksheet
+        
+        Dim DFP_DRT As Workbook             '...............................................................................DFP_DRT Report Data References
+            Dim Data_DRT As Worksheet
+            
+        Dim lastDRT As Workbook             '...............................................................................Last DRT References
+            Dim lastDRT_Report As Worksheet
+
+        Dim Settings As Workbook            '...............................................................................Tuner settings References
+            Dim Set_Adv As Worksheet
+            Dim Set_Ord As Worksheet
+            Dim Set_Lin As Worksheet
+        
+        Dim Template As Workbook            '...............................................................................DRT Template References
+            Dim T_Report As Worksheet
+            Dim T_3Day As Worksheet
+            Dim T_LastReport As Worksheet
+            Dim T_Lookups As Worksheet
+            Dim T_Single As Worksheet
+            Dim T_Pace As Worksheet
+            Dim T_100pct As Worksheet
+            Dim T_Excl As Worksheet
+            Dim T_Issues As Worksheet
+            Dim T_Var As Worksheet
+            Dim T_Rea As Worksheet
+        
+        Dim Folder1 As String               '...............................................................................Tuner Settings Folder
+        
+        Dim File1 As String                 '...............................................................................Tuner Settings filePath
+        
+        Dim FileName2 As String             '...............................................................................DRT_Template fileName
+        
+        Dim File2 As String                 '...............................................................................DRT_Template filePath
+        
+        Dim FileName3 As String             '...............................................................................LastDRT fileName
+        
+        Dim File3 As String                 '...............................................................................LastDRT filePath
+    
+        Dim lrow As String                  '...............................................................................Last Row as variable
+        
+'_______Set File References___________________________________
+
+        'Speedups
+        Application.ScreenUpdating = False
+        Application.Calculation = xlCalculationManual
+        
+        'Set Macro References
+        Set Macro = ThisWorkbook
+        Set M_Main = Macro.Sheets(1)
+        Set M_Log = Macro.Sheets(2)
+        
+        
+        With M_Main
+            'Updates Box Location
+            .Range("B8").Value = Environ("UserProfile") & "\Box Sync\"
+            .Range("B9").Value = Environ("UserProfile") & "\Box\"
+        
+            'Updates last files location
+            .Range("D24").Value = .Range("B24")
+            .Range("D25").Value = .Range("B25")
+            .Range("D26").Value = .Range("B26")
+        End With
+        
+        Application.Calculate
+        
+        Call startLog(M_Log)
+        
+        'Tuner Settings File
+        Folder1 = M_Main.Range("D17") & M_Main.Range("A17")
+        File1 = M_Main.Range("B17")
+        
+        'DRT_Template File
+        File2 = M_Main.Range("F16")
+        FileName2 = M_Main.Range("B16")
+        
+        'DRT File
+        File3 = M_Main.Range("F15")
+        FileName3 = M_Main.Range("B15")
+        
+        
+'_______Set Lookups References_______________________________
+        
+        Call openLatestWB(Folder1, File1)
+        Set Settings = ActiveWorkbook 'Need to fix error check to exit sub here
+            Set Set_Adv = Settings.Worksheets("Advertiser_Settings")
+            Set Set_Ord = Settings.Worksheets("Order_Overrides")
+            Set Set_Lin = Settings.Worksheets("Line_Item_Overrides")
+        
+        On Error Resume Next
+            Set DFP_3Day = Workbooks.Open(M_Main.Range("F18"))
+                If DFP_3Day Is Nothing Then
+                    MsgBox "DFP_3Day report could not be found", vbCritical
+                    Exit Sub
+                End If
+            Set Data_3Day = DFP_3Day.Sheets(1)
+            
+            Set DFP_DRT = Workbooks.Open(M_Main.Range("F19"))
+                If DFP_DRT Is Nothing Then
+                    MsgBox "DFP_DRT report could not be found", vbCritical
+                    Exit Sub
+                End If
+            Set Data_DRT = DFP_DRT.Sheets(2)
+                
+        On Error GoTo 0
+
+'_______Set Template References______________________________
+        
+        Call openWBDate(File2, FileName2)
+        Set Template = ActiveWorkbook
+            Set T_Report = Template.Worksheets("Report")
+            Set T_3Day = Template.Worksheets("3Day_DFP")
+            Set T_LastReport = Template.Worksheets("last_report")
+            Set T_Lookups = Template.Worksheets("Lookups")
+            Set T_Single = Template.Worksheets("Single_Line")
+            Set T_Pace = Template.Worksheets("Pacing_Good")
+            Set T_100pct = Template.Worksheets("100pctSOV")
+            Set T_Excl = Template.Worksheets("Excluded")
+            Set T_Issues = Template.Worksheets("Issues")
+            Set T_Var = Template.Worksheets("Booked_Variance")
+            Set T_Rea = Template.Worksheets("Reallocate")
+        
+        Call openWBDate(File3, FileName3)
+        Set lastDRT = ActiveWorkbook
+            Set lastDRT_Report = lastDRT.Worksheets("Report")
+        
+        'Copy/Pastes 3Day DFP Report data
+        Call CPV_Sheet(Data_3Day, T_3Day)
+            Application.CutCopyMode = False
+            DFP_3Day.Close xlSaveChanges = False
+        
+        'Copy/Pastes last DRT data
+        Call CPV_Sheet(lastDRT_Report, T_LastReport)
+            Application.CutCopyMode = False
+            lastDRT.Close xlSaveChanges = False
+        
+        'Checks to unfilter Data
+        Call Unfilter(T_Report)
+        
+        With T_Report
+            If .Range("A6") = "" And .Range("BF6") = "" Then _
+                'Do Nothing if previous data is missing
+            Else: _
+                .Range("A6", .Range("A6").End(xlDown).End(xlToRight).Offset(2, 2)).ClearContents
+            End If
+            
+            Data_DRT.Range("A1", Data_DRT.Range("A1").End(xlToRight).End(xlDown)).Copy
+            .Range("BF5").PasteSpecial
+        End With
+        
+        Application.CutCopyMode = False
+        DFP_DRT.Close xlSaveChanges = False
+
+'_______Template Lookups Update_____________________________
+        
+        With T_Lookups
+            .Range("A3", .Range("A3").End(xlDown).Offset(0, 2)).ClearContents
+            .Range("H3", .Range("H3").End(xlDown).Offset(0, 1)).ClearContents
+            .Range("K3", .Range("K3").End(xlDown).Offset(0, 1)).ClearContents
+        End With
+        
+        With Set_Adv
+            .Range("A7", .Range("A7").End(xlDown)).Copy
+            T_Lookups.Range("A3").PasteSpecial xlPasteValues
+            .Range("C7", .Range("C7").End(xlDown).Offset(0, 1)).Copy
+            T_Lookups.Range("B3").PasteSpecial xlPasteValues
+        End With
+        
+        With Set_Ord
+            .Range("A6:G5000").AutoFilter 5, "No"
+            .Range("B6", .Range("B6").End(xlDown).Offset(0, 1)).Copy
+            T_Lookups.Range("H2").PasteSpecial xlPasteValues
+        End With
+ 
+        With Set_Lin
+            .Range("A6:G5000").AutoFilter 5, "No"
+            .Range("B6", .Range("B6").End(xlDown).Offset(0, 1)).Copy
+            T_Lookups.Range("K2").PasteSpecial xlPasteValues
+        End With
+        
+        Application.CutCopyMode = False
+        Settings.Close xlSaveChanges = False
+        
+
+'_______Copy/Paste Formulas Down_____________________________
+ 
+        lrow = T_Report.Cells(Rows.Count, 58).End(xlUp).Row
+        
+        With T_Report
+            'Copy/Paste first 5 columns of formulas
+            .Range("A4:E4").Copy
+            .Range("A6:A" & lrow).PasteSpecial
+            Application.Calculate
+            .Range("A6:E" & lrow).Copy
+            .Range("A6:E" & lrow).PasteSpecial xlPasteValues
+            
+            'Sort and delete "Delete" rows
+            .Range("A5", T_Report.Range("A5").End(xlToRight).End(xlDown)).Sort _
+                Key1:=.Range("E5"), _
+                Order1:=xlDescending, _
+                Header:=xlYes
+            
+            .Range("A5", T_Report.Range("A5").End(xlToRight).End(xlDown)).AutoFilter _
+                Field:=5, _
+                Criteria1:="Delete"
+            
+            .Range("A5", T_Report.Range("A5").End(xlToRight).End(xlDown)).Offset(1, 0).SpecialCells(xlCellTypeVisible).EntireRow.Delete
+            .ShowAllData
+            
+            'Copy/Paste remainder of formulas
+            .Range("F4", .Range("F4").End(xlToRight)).Copy
+            .Range("F6", .Range("BF6").End(xlDown).Offset(0, -1)).PasteSpecial
+            .Calculate
+            .Range("A6", .Range("A6").End(xlToRight).End(xlDown)).Copy
+            .Range("A6", .Range("A6").End(xlToRight).End(xlDown)).PasteSpecial xlPasteValues
+        End With
+
+
+'_______Check Missing Advertisers__________________________
+
+        With T_Report
+            .Range("A2").Value = Application.Sum(.Range("A1:E1"))
+            If .Range("A2") = 0 Then 'If no missing advertisers are found, then next step
+                .Range("A2").ClearContents
+            Else: .Range("A5", .Range("A5").End(xlToRight).End(xlDown)).AutoFilter Field:=1, Criteria1:="Missing"
+                  .Range("U5", .Range("U5").End(xlDown)).SpecialCells(xlCellTypeVisible).Copy
+                    Template.Sheets("Missing Adv").Range("A:A").ClearContents
+                  .Range("U5", .Range("U5").End(xlDown)).SpecialCells(xlCellTypeVisible).Copy
+                    Template.Sheets("Missing Adv").Range("A1").PasteSpecial
+                    Template.Sheets("Missing Adv").Range("A:A").RemoveDuplicates Columns:=1
+                    
+                    lrow = Template.Sheets("Missing Adv").Cells(Rows.Count, 1).End(xlUp).Row
+                    
+                    Template.Sheets("Missing Adv").Range("A2:A" & lrow).Copy
+                    T_Lookups.Range("A1").End(xlDown).Offset(1, 0).PasteSpecial
+                    T_Lookups.Range(T_Lookups.Range("A1").End(xlDown).Offset(0, 1), T_Lookups.Range("A1").End(xlDown).Offset(0, 1).End(xlUp).Offset(1, 0)).Value = "No"
+                    
+                    '                          'Subject                                              'Recipient                  'Body1     'Body2                                                                       'Body3                                     'Attachment
+                    'Call SendEmail_Latebinding("Missing Advertisers " & Format(Now(), "yyyy-mm-dd"), M_Main.Range("B29").Value, "Hi Team", "Missing advertisers found! Please update these on lookups file EOD today.", Template.Sheets("Missing Adv").Range("C1"), "")
+
+                    .Range("A2").ClearContents
+                    .Range("A4", .Range("A4").End(xlToRight)).Copy
+                    .Range("A6", .Range("A6").End(xlDown)).SpecialCells(xlCellTypeVisible).PasteSpecial
+                    .Calculate
+                    .ShowAllData
+                    .Range("A6", .Range("A6").End(xlToRight).End(xlDown)).SpecialCells(xlCellTypeVisible).Copy
+                    .Range("A6").PasteSpecial xlPasteValues
+            End If
+        End With
+
+'_______Fill In Reporting Tabs_____________________________
+
+        Call CopyFilter(T_Report, T_Single, "A5", "A5", "Report Index", "Single Line", "Advertiser Lookup", "Recovered Since Last Report")
+        Call CopyFilter(T_Report, T_Pace, "A5", "A5", "Report Index", "Pacing Good", "Advertiser Lookup", "BG Projected Under")
+        Call CopyFilter(T_Report, T_100pct, "A5", "A5", "Report Index", "100pct BG", "Advertiser Lookup", "BG Projected Under")
+        Call CopyFilter(T_Report, T_Excl, "A5", "A5", "Report Index", "Excluded", "Advertiser Lookup", "BG Projected Under")
+        Call CopyFilter(T_Report, T_Issues, "A5", "A5", "Report Index", "Issues", "Advertiser Lookup", "Overbooked Revenue")
+        
+            'Copy/Paste "Issues"
+            With T_Report
+            
+                Call Unfilter(T_Report)
+                
+                .Range("A5", .Range("A5").End(xlToRight).End(xlDown)).AutoFilter _
+                    Field:=16, _
+                    Criteria1:="Issues"
+                .Range("H6", .Range("H6").Offset(0, 3).End(xlDown)).SpecialCells(xlCellTypeVisible).Copy
+                T_Issues.Range("K6").PasteSpecial
+                .ShowAllData
+            End With
+        
+            'Filter for values that do not equal "False"
+            With T_Report
+                .Range("A5", .Range("A5").End(xlToRight).End(xlDown)).AutoFilter _
+                    Field:=18, _
+                    Criteria1:=Array("<>False"), _
+                    Operator:=xlAnd
+                .Range("U5", .Range("AG5").End(xlDown)).SpecialCells(xlCellTypeVisible).Copy
+            End With
+            
+            With T_Var
+                .Range("A5").PasteSpecial
+                .Range("N4:O4").Copy
+                .Range("N6", .Range("M6").End(xlDown).Offset(0, 1)).PasteSpecial
+                .Calculate
+            End With
+            
+        Call CopyFilter(T_Report, T_Rea, "A5", "A5", "Report Index", "Reallocate", "Advertiser Lookup", "Overbooked Revenue")
+        
+            'Copy/Paste Remaining Rows, skipping "Overbooked impressions"
+            With T_Report
+                .Range("A5", .Range("A5").End(xlToRight).End(xlDown)).AutoFilter _
+                    Field:=16, _
+                    Criteria1:="Reallocate"
+                .Range("AF5", .Range("BE5").End(xlDown)).SpecialCells(xlCellTypeVisible).Copy
+            End With
+            
+            With T_Rea
+                .Range("K5").PasteSpecial
+                .Range("AK4:AL4").Copy
+                .Range("AK6", .Range("AI6").End(xlDown).Offset(0, 2)).PasteSpecial
+                .Calculate
+                .Range("AK6", .Range("AL6").End(xlDown)).Copy
+                .Range("AK6", .Range("AL6").End(xlDown)).PasteSpecial xlPasteValues
+            End With
+        
+        Call endLog(M_Log)
+        
+        Application.Calculate
+        
+'_______Save Today's Files_____________________________
+
+        'Save Template
+        Template.SaveAs M_Main.Range("F16").Value & Format(Now(), "yyyy-mm-dd")
+            M_Main.Range("B25").Value = M_Main.Range("E16") & "\" & Dir(M_Main.Range("F16").Value & Format(Now(), "yyyy-mm-dd") & "*")
+        
+        'Save Upload
+        With T_Rea
+            .Range("A5", .Range("A5").End(xlToRight).End(xlDown)).AutoFilter _
+                Field:=38, _
+                Criteria1:="Liberator Weekly: More than $5 in proj BG recovery"
+            .Range("AG5", .Range("AG5").End(xlDown).Offset(0, 4)).Copy
+        End With
+        
+        Set Upload = Workbooks.Add
+        Upload.Sheets(1).Range("A1").PasteSpecial xlPasteValues
+        Upload.SaveAs FileName:=M_Main.Range("F20") & Format(Now(), "yyyy-mm-dd") & ".csv", FileFormat:=xlCSV
+        Upload.Close SaveChanges:=False
+            M_Main.Range("B26").Value = M_Main.Range("E20") & "\" & Dir(M_Main.Range("F20") & Format(Now(), "yyyy-mm-dd") & "*")
+        
+        'Save DFP_DRT
+        Call wbValues(Template)
+        Template.Sheets(1).Activate
+        Template.SaveAs FileName:=M_Main.Range("F15").Value & Format(Now(), "yyyy-mm-dd")
+            M_Main.Range("B24").Value = M_Main.Range("E15") & "\" & Dir(M_Main.Range("F15").Value & Format(Now(), "yyyy-mm-dd") & "*")
+        
+        Workbooks("DFP_DRT_" & Format(Now(), "YYYY-MM-DD")).Activate
+        
+        lrow = ActiveWorkbook.Worksheets("Summary").Cells.Find(What:="Last Row", _
+                                                               After:=Range("A1"), _
+                                                               LookAt:=xlWhole, _
+                                                               LookIn:=xlFormulas, _
+                                                               SearchOrder:=xlByRows, _
+                                                               SearchDirection:=xlPrevious, _
+                                                               MatchCase:=False).Row
+        
+                        'Sheet    'Picture range                                                                                                                                                            'Name of picture
+        Call createImage(Workbooks("DFP_DRT_" & Format(Now(), "YYYY-MM-DD")).Worksheets("Summary"), Workbooks("DFP_DRT_" & Format(Now(), "YYYY-MM-DD")).Worksheets("Summary").Range("A1:L" & lrow).Address, "Image")
+        
+                                  'Subject                   'Recipient                 'Attachment
+        Call SendEmail_Latebinding(M_Main.Range("B30").Value, M_Main.Range("B29").Value, M_Main.Range("B24"))
+        
+        Application.ScreenUpdating = True
+        Application.Calculation = xlCalculationAutomatic
+        Template.Close SaveChanges:=False
+        
+    End Sub
+
+______________________________________________________________________________________________________________________________________
+    ************
+    MODULES USED
+    ************
+    
+    Option Explicit
+    
+    Public Sub openLatestWB(FolderName As String, FileName As String)
+        
+        Dim FilePath        As String
+        Dim LatestFile      As String
+        Dim LatestDate      As Date
+        Dim FDT             As Date
+        
+        FilePath = Dir(FolderName & FileName & "*")
+        
+        If Len(FilePath) = 0 Then
+            MsgBox "No file was not found"
+            Exit Sub
+        End If
+        
+        Do While Len(FilePath) > 0
+            FDT = FileDateTime(FolderName & FilePath)
+            If FDT > LatestDate Then
+                LatestFile = FilePath
+                LatestDate = FDT
+            End If
+            
+            FilePath = Dir
+        Loop
+        
+        Workbooks.Open (FolderName & LatestFile)
+    End Sub
+        
+    Public Sub openWBDate(FilePath As String, _
+                          FileName As String)
+        
+        Dim WB              As Workbook
+        Dim x               As Integer
+
+        On Error Resume Next
+            Do While x < 30 And WB Is Nothing
+                Set WB = Workbooks.Open(FilePath & Format(Now() - x, "yyyy-mm-dd"))
+                    If WB Is Nothing Then
+                        x = x + 1
+                    Else
+                        Exit Sub
+                    End If
+            Loop
+        On Error GoTo 0
+        
+        If WB Is Nothing Then
+            MsgBox FileName & " was not found"
+            End 'Function stops all macros
+        End If
+    End Sub
+    
+    Public Sub CPV_Sheet(Copy As Worksheet, _
+                         Paste As Worksheet)
+    
+    'Sub for copy/pasting values
+    On Error Resume Next
+        Copy.ShowAllData
+        Paste.ShowAllData
+        Copy.Cells.Copy
+        Paste.Range("A1").PasteSpecial xlPasteValuesAndNumberFormats
+    On Error GoTo 0
+    
+    End Sub
+    
+    Public Sub CopyFilter(CopyWS As Worksheet, _
+                          PasteWS As Worksheet, _
+                          PasteLoc As String, _
+                          TopLeftCell As String, _
+                          FilterColName As String, _
+                          Criteria As String, _
+                          CopyRangeStartName As String, _
+                          CopyRangeEndName As String)
+        
+        Dim CopyStart       As String
+        Dim CopyStartCol    As String
+        Dim CopyEndCol      As String
+        Dim Offset          As Integer
+        
+        On Error Resume Next
+        CopyWS.ShowAllData
+        PasteWS.ShowAllData
+        
+        'Any fields titled Name must be unique identifiers
+        
+        'Filter Column Name
+        FilterColName = CopyWS.Cells.Find(What:=FilterColName, LookAt:=xlWhole).Column
+        
+        'Copy Start Name
+        CopyStart = CopyWS.Cells.Find(What:=CopyRangeStartName, LookAt:=xlWhole).Address
+                    
+            'Copy Columns
+            CopyStartCol = CopyWS.Cells.Find(What:=CopyRangeStartName, LookAt:=xlWhole).Column
+            CopyEndCol = CopyWS.Cells.Find(What:=CopyRangeEndName, LookAt:=xlWhole).Column
+            Offset = CopyEndCol - CopyStartCol
+        
+        With CopyWS
+            'First, clear contents of last report tab
+            PasteWS.Range("A6", PasteWS.Range("a6").End(xlDown).End(xlToRight)).ClearContents
+            
+            'Then, filter for range you want and paste
+            .Range(TopLeftCell, .Range(TopLeftCell).End(xlToRight).End(xlDown)).AutoFilter _
+                Field:=FilterColName, _
+                Criteria1:=Criteria
+            .Range(CopyStart, .Range(CopyStart).Offset(0, Offset).End(xlDown)).SpecialCells(xlCellTypeVisible).Copy
+            PasteWS.Range(PasteLoc).PasteSpecial
+        End With
+        
+    End Sub
+    
+    
+    Public Sub LastRow(WS As Worksheet, Col As Integer)
+
+   'Finds the last non-blank cell on a sheet/range.
+
+    Dim lrow As String
+    
+    lrow = WS.Cells(Rows.Count, Col).End(xlUp).Row
+    
+    End Sub
+    
+    Public Sub Unfilter(WS As Worksheet)
+            On Error Resume Next
+            If WS.AutoFilterMode = True Then
+                WS.ShowAllData
+            End If
+            On Error GoTo 0
+    End Sub
+    
+    Public Sub startLog(WS As Worksheet)
+        
+        Dim lrow As String
+        
+        lrow = WS.Cells(Rows.Count, 1).End(xlUp).Row
+        
+        With WS
+            .Range("A" & lrow + 1).Value = Environ("Username")
+            .Range("B" & lrow + 1).Value = Format(Now(), "mmm dd, yyyy")
+            .Range("C" & lrow + 1).Value = Format(Now(), "hh:mm:ss")
+        End With
+        
+    End Sub
+
+    Public Sub endLog(WS As Worksheet)
+        
+        Dim lrow As String
+        
+        lrow = WS.Cells.Find(What:="*", _
+                        After:=Range("A1"), _
+                        LookAt:=xlPart, _
+                        LookIn:=xlFormulas, _
+                        SearchOrder:=xlByRows, _
+                        SearchDirection:=xlPrevious, _
+                        MatchCase:=False).Row
+        With WS
+            .Range("D" & lrow).Value = Format(Now(), "hh:mm:ss")
+            .Range("E" & lrow).Formula = "=d" & lrow & "-C" & lrow
+            .Range("E" & lrow).Copy
+            .Range("E" & lrow).PasteSpecial xlPasteValues
+            .Range("F" & lrow).Value = "Completed"
+        End With
+
+    End Sub
+    
+    Public Sub wbValues(WB As Workbook)
+    
+    Dim WS As Worksheet
+    
+    On Error Resume Next
+    For Each WS In WB.Worksheets
+        If WS.Visible = True Then
+            WS.ShowAllData
+            WS.Activate
+            WS.Cells.Copy
+            WS.Range("A1").PasteSpecial Paste:=xlValues
+        End If
+    Next WS
+    
+    Application.CutCopyMode = False
+    
+    End Sub
+
+    Sub SendEmail(Subject As String, _
+                  Recipient As String, _
+                  Body As String, _
+                  Attachment As String)
+    
+        Dim olApp As Outlook.Application
+        Dim olEmail As Outlook.MailItem
+        
+        Set olApp = New Outlook.Application
+        Set olEmail = olApp.CreateItem(olMailItem)
+        
+        With olEmail
+            .BodyFormat = olFormatPlain
+            .Display
+            
+            .HTMLBody = Body & "<br><br>" & .HTMLBody
+            .Attachments = Attachment
+            
+            .To = Recipient
+            .Subject = Subject & Format(Now(), "yyyy-mm-dd")
+            
+            '.Send
+        End With
+        
+    End Sub
+
+    Public Sub SendEmail_Latebinding(Subject As String, _
+                                     Recipient As String, _
+                                     Attachment As String)
+        
+        Dim olApp       As Object
+        Dim olEmail     As Object
+        Dim Signature   As String
+        Dim Image       As String
+        
+        'DEFAULTS TO AUTOSENDING EMAIL
+        Set olApp = CreateObject("Outlook.Application")
+        Set olEmail = olApp.CreateItem(0)
+        
+        Application.ScreenUpdating = True
+        
+        Image = Environ("USERPROFILE") & "\Desktop\" & "Image.JPG"
+        
+        With olEmail
+            .BodyFormat = 2
+            .Display
+            
+            Signature = olEmail.HTMLBody
+            
+            .HTMLBody = "<BODY Style=font-size:11pt;font-family:Calibri> Hi team, <br><br> Attached is today's DRT. Please send your exclusions by EOD." _
+                        & "<br><br>" _
+                        & "<img src=" & Image & ">" _
+                        & "<br>" _
+                        & Signature
+                        
+            .Attachments.Add Attachment
+            .To = Recipient
+            .Subject = Subject
+            .Send
+        End With
+        
+        Kill Image
+    End Sub
+
+    Public Sub createImage(WS As Worksheet, _
+                           RangeAddress As String, _
+                           nameFile As String)
+    
+        Dim Pic As Range
+        
+        WS.Activate
+        
+        Set Pic = WS.Range(RangeAddress)
+        
+        Pic.CopyPicture xlScreen
+        
+        With WS.ChartObjects.Add(Pic.Left, _
+                                 Pic.Top, _
+                                 Pic.Width, _
+                                 Pic.Height)
+            .Activate
+            .Chart.Paste
+            .Chart.Export Environ("USERPROFILE") & "\Desktop\" & nameFile & ".jpg", "JPG"
+        End With
+        
+        WS.ChartObjects(WS.ChartObjects.Count).Delete
+        
+        Set Pic = Nothing
+    
+    End Sub

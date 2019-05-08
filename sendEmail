@@ -1,0 +1,38 @@
+    Public Sub SendEmail_Latebinding(Subject As String, _
+                                     Recipient As String, _
+                                     Attachment As String)
+        
+        Dim olApp       As Object
+        Dim olEmail     As Object
+        Dim Signature   As String
+        Dim Image       As String
+        
+        'DEFAULTS TO AUTOSENDING EMAIL and DELETING EXCEL IMAGE CREATED
+        Set olApp = CreateObject("Outlook.Application")
+        Set olEmail = olApp.CreateItem(0)
+        
+        Application.ScreenUpdating = True
+        
+        Image = Environ("USERPROFILE") & "\Desktop\" & "Image.JPG"
+        
+        With olEmail
+            .BodyFormat = 2
+            .Display
+            
+            Signature = olEmail.HTMLBody
+            
+            .HTMLBody = "<BODY Style=font-size:11pt;font-family:Calibri> Hi team, <br><br> Attached is today's DRT. Please send your exclusions by EOD." _
+                        & "<br><br>" _
+                        & "<img src=" & Image & ">" _
+                        & "<br>" _
+                        & Signature
+                        
+            .Attachments.Add Attachment
+            .To = Recipient
+            .Subject = Subject
+            .Send 'SENDS EMAIL AUTOMATICALLY!
+        End With
+        
+        'DELETES GENERATED EXCEL IMG File!
+        Kill Image
+    End Sub
